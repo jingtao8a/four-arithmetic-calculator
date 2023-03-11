@@ -49,7 +49,7 @@ class LL1CFG(CFG):
         self.follow_set = None
         self.select_set = None
 
-    def parse(self):
+    def deal_with_productions(self):
         self.get_productions_from_file()
         self.non_terminal_symbols = set(self.productions.keys())
         for production_bodys in self.productions.values():
@@ -82,14 +82,14 @@ class LL1CFG(CFG):
                 new_production_bodys = []
                 for production_body in production_bodys:
                     if production_body[0] == ch:
-                        new_production_bodys = new_production_bodys + self.__list_of_str_recontact(self.productions[sequence[j]], production_body[1:])
+                        new_production_bodys = new_production_bodys + self.__contact_list_of_str_and_str(self.productions[sequence[j]], production_body[1:])
                     else:
                         new_production_bodys.append(production_body)
                 self.productions[sequence[i]] = new_production_bodys
         
         self.__simplified_productions()    
     
-    def __list_of_str_recontact(self, list_of_str: list[str] , suffix: str):
+    def __contact_list_of_str_and_str(self, list_of_str: list[str] , suffix: str):
         new_list = []
         for i in list_of_str:
             if self.epsilon in i:
@@ -136,14 +136,14 @@ class LL1CFG(CFG):
                     new_production_bodys = []
                     for body in production_bodys:
                         if body[0] == production_head:
-                            self.productions[new_symbol].append(self.__str_recontact(body[1:], new_symbol))
+                            self.productions[new_symbol].append(self.__contact_str_and_str(body[1:], new_symbol))
                         else:
-                            new_production_bodys.append(self.__str_recontact(body, new_symbol))
+                            new_production_bodys.append(self.__contact_str_and_str(body, new_symbol))
                     self.productions[production_head] = new_production_bodys
                     break
 
-    def __str_recontact(self, prefix: str, suffix: str):
-        if self.epsilon in prefix:
+    def __contact_str_and_str(self, prefix: str, suffix: str):
+        if self.epsilon in prefix or self.epsilon in suffix:
             return self.epsilon
         return "".join([prefix, suffix])
 
@@ -174,28 +174,25 @@ class LL1CFG(CFG):
             production_bodys = self.productions[production_head]
             if len(production_bodys) == 1:
                 continue
+            
             tree = utils.TireTree(production_bodys)
             common_prefix = tree.find_common_prefixes()
-            if common_prefix == "":
+            if common_prefix == []:
                 continue
-            length = len(common_prefix)
             flag = True
-
-            ch = self.__register_new_symbol()
-            self.productions[ch] = []
-            new_production_bodys = [common_prefix + ch]
-            
-            for production_body in production_bodys:
-                mat = re.match(common_prefix, production_body)
-                if mat is None:
-                    new_production_bodys.append(production_body)
-                else:
-                    if production_body[length:] == "":
-                        self.terminal_symbols.add(self.epsilon)
-                        self.productions[ch].append(self.epsilon)
+            new_production_bodys = set()
+            for prefix in common_prefix:
+                ch = self.__register_new_symbol()
+                self.productions[ch] = []
+                length = len(prefix)
+                for production_body in production_bodys:
+                    if re.match(prefix, production_body):
+                        self.productions[ch].append(production_body[length:] if len(production_body) > length else self.epsilon)
+                        new_production_bodys.add(self.__contact_str_and_str(prefix, ch))
                     else:
-                        self.productions[ch].append(production_body[length:])
-            self.productions[production_head] = new_production_bodys
+                        new_production_bodys.add(production_body)
+            
+            self.productions[production_head] = list(new_production_bodys)
 
         if flag:
             self.__eliminate_left_public_factor()
