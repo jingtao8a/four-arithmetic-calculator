@@ -1,10 +1,8 @@
-from Compile import cfg
+from Compile import analyzer
 
-a = cfg.LL1CFG(file_path="./test/g6.txt")
-a.deal_with_productions()
-a.info()
-a.print_productions()
-
+a = analyzer.LL1Analyzer("./test/g14.txt")
+a.get_analysis_table()
+a.ll1_construct("(a,a)")
 
 # from Compile import utils
 

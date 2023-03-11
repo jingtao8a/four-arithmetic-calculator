@@ -1,5 +1,7 @@
 from . import utils
 import re
+import copy
+
 class CFG:
     def __init__(self, file_path:str):
         self.epsilon = 'ε'
@@ -7,7 +9,10 @@ class CFG:
         self.productions = dict()
         self.file_path = file_path
     
-    def get_productions_from_file(self):
+    def deal_with_productions(self):
+        self._get_productions_from_file()
+
+    def _get_productions_from_file(self):
         with open(self.file_path, 'r', encoding='utf-8') as f:
             file_content = f.read().split('\n')
         if len(file_content) == 0:
@@ -33,6 +38,9 @@ class CFG:
                 if production_body in self.productions[production_head]:
                     raise ValueError(f"production {production_body} repeat")
                 self.productions[production_head].append(production_body.strip())
+    
+    def info(self):
+        pass
 
     def print_productions(self):
         print("productions:")
@@ -50,7 +58,7 @@ class LL1CFG(CFG):
         self.select_set = None
 
     def deal_with_productions(self):
-        self.get_productions_from_file()
+        self._get_productions_from_file()
         self.non_terminal_symbols = set(self.productions.keys())
         for production_bodys in self.productions.values():
             for production_body in production_bodys:
@@ -61,15 +69,18 @@ class LL1CFG(CFG):
         self.__eliminate_indirect_left_recursion()
         self.__eliminate_direct_left_recursion()
         self.__eliminate_left_public_factor()
+        self.__calculate_first_set()
+        self.__calculate_follow_set()
+        self.__calculate_select_set()
 
     def info(self):
-        print("non terminal symbols:")
-        for i in self.non_terminal_symbols:
-            print(i)
+        print(f'[起始符号]: {self.begin_symbol}')
+        print(f'[非终结符]: {str(self.non_terminal_symbols)}')
+        print(f'[终结符  ]: {str(self.terminal_symbols)}')
         
-        print("terminal symbols:")
-        for i in self.terminal_symbols:
-            print(i)
+        utils.print_set("[first set]:",self.first_set)
+        utils.print_set("[follow set]:", self.follow_set)
+        utils.print_set('[select set]:',self.select_set)
 
 
     def __eliminate_indirect_left_recursion(self):
@@ -196,3 +207,121 @@ class LL1CFG(CFG):
 
         if flag:
             self.__eliminate_left_public_factor()
+
+
+    def __calculate_first_set(self):
+        init_first_set = {}
+        for non_terminal_symbol in self.non_terminal_symbols:
+            init_first_set[non_terminal_symbol] = set()
+
+        self.first_set = self.__calculate_first_set_helper(init_first_set)
+    
+    def __calculate_first_set_helper(self, first_set):
+        current_first_set = copy.deepcopy(first_set)
+        for production_head, production_bodys in self.productions.items():
+            for production_body in production_bodys:
+                for i in range(len(production_body)):
+                    ch = production_body[i]
+                    if ch in self.terminal_symbols:
+                        # 如果ch字符是一个终结符
+                        # 将ch加入到production_statement的first集,结束
+                        first_set[production_head].add(ch)
+                        break
+                    else:
+                        # ch字符是非终结符
+                        # 将ch的first集(除去ε) 加入到production_statement的first集中
+                        exist_empty = False
+                        for c in first_set[ch]:
+                            if c != self.epsilon:
+                                first_set[production_head].add(c)
+                            else:
+                                exist_empty = True
+                        # 如果ch的first集中不包含'ε', 则结束
+                        if not exist_empty:
+                            break
+                        else:
+                            # 如果包含了ε, 那么继续判断下一个字符
+                            # 如果该字符已经是产生式的最后一个字符,则将ε加入到first集中
+                            if i == len(production_body) - 1:
+                                first_set[production_head].add(self.epsilon)
+        if current_first_set == first_set:
+            return first_set
+        else:
+            return self.__calculate_first_set_helper(first_set)
+
+    def __calculate_follow_set(self):
+        init_follow_set = {}
+        for non_terminal_symbol in self.non_terminal_symbols:
+            init_follow_set[non_terminal_symbol] = set()
+        # 将 $ 加入到起始元素的follow集中
+        init_follow_set[self.begin_symbol].add('$')
+
+        self.follow_set = self.__calculate_follow_set_helper(init_follow_set)
+
+    def __calculate_follow_set_helper(self, follow_set):
+        current_follow_set = copy.deepcopy(follow_set)
+        for production_head, production_bodys in self.productions.items():
+            for production_body in production_bodys:
+                for i in range(len(production_body)):
+                    ch = production_body[i]
+                    if ch in self.non_terminal_symbols:
+                        #如果ch是非终结符
+                        for j in range(i + 1, len(production_body)):
+                            follow_ch = production_body[j]
+                            if follow_ch in self.terminal_symbols:
+                                #如果follow_ch是终结符
+                                follow_set[ch].add(follow_ch)
+                                break
+                            else:
+                                #如果follow_ch是非终结符
+                                # 将follow_ch的first集的元素加入到ch的follow集中
+                                for symbol in self.first_set[follow_ch]:
+                                    follow_set[ch].add(symbol)
+                                    # 如果ch的follow集中有 ε 则去掉 ε 继续
+                                if self.epsilon in follow_set[ch]:
+                                    follow_set[ch].remove(self.epsilon)
+                                else:
+                                    # 如果没有 ε 则结束
+                                    break
+                for i in range(len(production_body) - 1, -1, -1):
+                    ch = production_body[i]
+                    # 如果结尾是一个终结符,则结束
+                    # 如果结尾元素是一个非终结符
+                    # 那么将产生式头部的follow集加入到结尾元素的follow集中
+                    if ch in self.terminal_symbols:
+                        break
+                    else:
+                        for symbol in follow_set[production_head]:
+                            follow_set[ch].add(symbol)
+                         # 如果结尾元素的follow集中不含 ε 则结束
+                        # 否则继续向前判断
+                        if self.epsilon not in self.first_set[ch]:
+                            break
+        if current_follow_set == follow_set:
+            return follow_set
+        else:
+            return self.__calculate_follow_set_helper(follow_set)
+
+    def __calculate_select_set(self):
+        self.select_set = {}
+        for production_head, production_bodys in self.productions.items():
+            for production_body in production_bodys:
+                production = f'{production_head} -> {production_body}'
+                first_char = production_body[0]
+
+                if first_char == self.epsilon:
+                    # 如果产生式的第一个字符为 ε
+                    # 该产生式的select集是production_head的follow集
+                    self.select_set[production] = self.follow_set[production_head]
+                elif first_char in self.terminal_symbols:
+                    # 如果第一个字符是终结符
+                    # 该产生式的select集是这个字符
+                    self.select_set[production] = set(first_char)
+                else:
+                    # 如果第一个字符是非终结符
+                    # 该产生式的select集是第一个字符的first集
+                    self.select_set[production] = self.first_set[first_char]
+                    if self.epsilon in self.select_set[production]:
+                        #如果第一个字符的first集存在self.epsilon,将first_char的follow集加入select集
+                        self.select_set[production].remove(self.epsilon)
+                        self.select_set[production].update(self.follow_set[first_char])
