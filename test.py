@@ -1,9 +1,10 @@
-from Compile import analyzer
+# from Compile import analyzer
+# import Compile
 
-a = analyzer.LL1Analyzer("./test/g14.txt")
-a.get_analysis_table()
-a.ll1_construct("(a,a)")
-
+# a = Compile.analyzer.LL1Analyzer("./test/g14.txt")
+# a.get_analysis_table()
+# a.ll1_construct("(a,a,a)")
+# print(Compile.cfg.re.match("yu", "yuxintao").group())
 # from Compile import utils
 
 # l = ["+A", "-A"]
@@ -16,3 +17,30 @@ a.ll1_construct("(a,a)")
 
 # res = re.sub('yu', '', s1)
 # print(res)
+# from Compile.parser import kit
+
+# a = kit.Logger()
+# a.debug()
+# a.log("hello")
+
+# from Compile.parser import kit
+
+# class me(kit.ErrorCode):
+#     a = 1
+#     b = 2
+#     c = 3
+
+# me.info()
+
+# from Compile.calculator import calinterpreter, calkit
+
+# # calkit.calc_logger.debug()
+# calinterpreter.calculator()
+
+# from Compile.base import kit
+# print(kit.ErrorCode.UNEXPECTED_TOKEN)
+
+
+import Compile
+
+Compile.calculator.calinterpreter.calculator()
